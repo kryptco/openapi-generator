@@ -383,13 +383,12 @@ public class RustClientCodegen extends DefaultCodegen implements CodegenConfig {
         @SuppressWarnings("unchecked")
         List<CodegenOperation> operations = (List<CodegenOperation>) objectMap.get("operation");
         for (CodegenOperation operation : operations) {
-            // http method verb conversion, depending on client library (e.g. Hyper: PUT => Put, Reqwest: PUT => put)
+            // http method verb conversion, depending on client library (e.g. Reqwest: PUT => put)
             if (HYPER_LIBRARY.equals(getLibrary())) {
-                operation.httpMethod = StringUtils.camelize(operation.httpMethod.toLowerCase(Locale.ROOT));
+				// do nothing
             } else if (REQWEST_LIBRARY.equals(getLibrary())) {
                 operation.httpMethod = operation.httpMethod.toLowerCase(Locale.ROOT);
             }
-
             // update return type to conform to rust standard
             /*
             if (operation.returnType != null) {

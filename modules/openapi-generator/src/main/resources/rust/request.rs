@@ -5,9 +5,14 @@ use super::{configuration, Error};
 use futures;
 use futures::{Future, Stream};
 use hyper;
-use hyper::header::UserAgent;
+use hyper::header::USER_AGENT;
+use hyper::header::AUTHORIZATION;
+use base64::encode;
 use serde;
 use serde_json;
+
+const MIME_APPLICATION_WWW_FORM_URLENCODED: &'static str = "application/x-www-form-urlencoded";
+const MIME_APPLICATION_JSON: &'static str = "application/json";
 
 pub(crate) struct ApiKey {
     pub in_header: bool,
@@ -97,17 +102,17 @@ impl Request {
     pub fn execute<'a, C, U>(
         self,
         conf: &configuration::Configuration<C>,
-    ) -> Box<Future<Item = U, Error = Error<serde_json::Value>> + 'a>
+    ) -> Box<Future<Item = U, Error = Error<serde_json::Value>> + 'a + Send>
     where
-        C: hyper::client::Connect,
+        C: hyper::client::connect::Connect + 'static,
         U: Sized + 'a,
-        for<'de> U: serde::Deserialize<'de>,
+        for<'de> U: serde::Deserialize<'de> + Send,
     {
         let mut query_string = ::url::form_urlencoded::Serializer::new("".to_owned());
         // raw_headers is for headers we don't know the proper type of (e.g. custom api key
         // headers); headers is for ones we do know the type of.
-        let mut raw_headers = HashMap::new();
-        let mut headers: hyper::header::Headers = hyper::header::Headers::new();
+        let mut raw_headers: HashMap<String, String> = HashMap::new();
+        let mut headers: hyper::header::HeaderMap = hyper::header::HeaderMap::new();
 
         let mut path = self.path;
         for (k, v) in self.path_params {
@@ -137,19 +142,24 @@ impl Request {
             }
             Auth::Basic => {
                 if let Some(ref auth_conf) = conf.basic_auth {
-                    let auth = hyper::header::Authorization(hyper::header::Basic {
-                        username: auth_conf.0.to_owned(),
-                        password: auth_conf.1.to_owned(),
-                    });
-                    headers.set(auth);
+                    let ref username = auth_conf.0;
+
+                    let user_password = if let Some(ref password) = auth_conf.1 {
+                        format!("{}:{}", username, password)
+                    } else {
+                        username.to_owned()
+                    };
+
+                    let raw_header_value = format!("Basic {}", encode(&user_password));
+                    let basic_auth = hyper::header::HeaderValue::from_str(&raw_header_value).unwrap();
+                    headers.insert(hyper::header::AUTHORIZATION, basic_auth);
                 }
             }
             Auth::Oauth => {
                 if let Some(ref token) = conf.oauth_access_token {
-                    let auth = hyper::header::Authorization(hyper::header::Bearer {
-                        token: token.to_owned(),
-                    });
-                    headers.set(auth);
+                    let raw_header_value = format!("Bearer {}", token);
+                    let bearer_auth = hyper::header::HeaderValue::from_str(&raw_header_value).unwrap();
+                    headers.insert(hyper::header::AUTHORIZATION, bearer_auth);
                 }
             }
             Auth::None => {}
@@ -169,45 +179,57 @@ impl Request {
             Ok(u) => u,
         };
 
-        let mut req = hyper::Request::new(self.method, uri);
+        let mut builder = hyper::Request::builder();
+        let req_builder = builder
+            .uri(uri)
+            .method(self.method);
+
         {
-            let req_headers = req.headers_mut();
             if let Some(ref user_agent) = conf.user_agent {
-                req_headers.set(UserAgent::new(Cow::Owned(user_agent.clone())));
+                req_builder.header(USER_AGENT, user_agent.clone());
             }
 
-            req_headers.extend(headers.iter());
+            for (name_opt, value) in headers {
+                if let Some(ref name) = name_opt {
+                    req_builder.header(name, value.clone());
+                }
+            }
 
-            for (key, val) in raw_headers {
-                req_headers.set_raw(key, val);
+            for (name, value) in raw_headers {
+                req_builder.header(name.as_str(), value.as_str());
             }
         }
-
-        if self.form_params.len() > 0 {
-            req.headers_mut().set(hyper::header::ContentType::form_url_encoded());
+        
+        let req = if self.form_params.len() > 0 {
             let mut enc = ::url::form_urlencoded::Serializer::new("".to_owned());
             for (k, v) in self.form_params {
                 enc.append_pair(&k, &v);
             }
-            req.set_body(enc.finish());
-        }
 
-        if let Some(body) = self.serialized_body {
-            req.headers_mut().set(hyper::header::ContentType::json());
-            req.headers_mut()
-                .set(hyper::header::ContentLength(body.len() as u64));
-            req.set_body(body);
-        }
+            req_builder
+                .header(hyper::header::CONTENT_TYPE, MIME_APPLICATION_WWW_FORM_URLENCODED)
+                .body(hyper::Body::from(enc.finish())).unwrap()
+
+        } else if let Some(body) = self.serialized_body {
+            req_builder
+                .header(hyper::header::CONTENT_TYPE, MIME_APPLICATION_JSON)
+                .header(hyper::header::CONTENT_LENGTH, body.len() as u64)
+                .body(hyper::Body::from(body)).unwrap()
+
+        } else {
+            req_builder
+                .header(hyper::header::CONTENT_LENGTH, 0 as u64)
+                .body(hyper::Body::default()).unwrap()
+        };
 
         let no_ret_type = self.no_return_type;
         let res = conf.client
                 .request(req)
                 .map_err(|e| Error::from(e))
                 .and_then(|resp| {
-                    let status = resp.status();
-                    resp.body()
-                        .concat2()
-                        .and_then(move |body| Ok((status, body)))
+                    let (head, body) = resp.into_parts();
+                    body.concat2()
+                        .and_then(move |body| Ok((head.status, body)))
                         .map_err(|e| Error::from(e))
                 })
                 .and_then(|(status, body)| {
