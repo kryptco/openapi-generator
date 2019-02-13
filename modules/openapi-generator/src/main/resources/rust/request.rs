@@ -147,7 +147,7 @@ impl Request {
                     let user_password = if let Some(ref password) = auth_conf.1 {
                         format!("{}:{}", username, password)
                     } else {
-                        username.to_owned()
+                        format!("{}:", username)
                     };
 
                     let raw_header_value = format!("Basic {}", encode(&user_password));
