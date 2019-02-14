@@ -1,10 +1,10 @@
-use std::rc::Rc;
+use std::sync::Arc;
 
 use hyper;
 use super::configuration::Configuration;
 
 pub struct APIClient<C: hyper::client::connect::Connect + 'static> {
-    configuration: Rc<Configuration<C>>,
+    configuration: Arc<Configuration<C>>,
 {{#apiInfo}}
 {{#apis}}
 {{#operations}}
@@ -20,16 +20,16 @@ pub struct APIClient<C: hyper::client::connect::Connect + 'static> {
 
 impl<C: hyper::client::connect::Connect + 'static> APIClient<C> {
     pub fn new(configuration: Configuration<C>) -> APIClient<C> {
-        let rc = Rc::new(configuration);
+        let arc = Arc::new(configuration);
 
         APIClient {
-            configuration: rc.clone(),
+            configuration: arc.clone(),
 {{#apiInfo}}
 {{#apis}}
 {{#operations}}
 {{#operation}}
             {{#-last}}
-            {{{classFilename}}}: Box::new(::apis::{{{classname}}}Client::new(rc.clone())),
+            {{{classFilename}}}: Box::new(::apis::{{{classname}}}Client::new(arc.clone())),
             {{/-last}}
 {{/operation}}
 {{/operations}}

@@ -1,5 +1,5 @@
 {{>partial_header}}
-use std::rc::Rc;
+use std::sync::Arc;
 use std::borrow::Borrow;
 
 use hyper;
@@ -10,11 +10,11 @@ use super::{Error, configuration};
 use super::request as __internal_request;
 
 pub struct {{{classname}}}Client<C: hyper::client::connect::Connect + 'static> {
-    configuration: Rc<configuration::Configuration<C>>,
+    configuration: Arc<configuration::Configuration<C>>,
 }
 
 impl<C: hyper::client::connect::Connect + 'static> {{{classname}}}Client<C> {
-    pub fn new(configuration: Rc<configuration::Configuration<C>>) -> {{{classname}}}Client<C> {
+    pub fn new(configuration: Arc<configuration::Configuration<C>>) -> {{{classname}}}Client<C> {
         {{{classname}}}Client {
             configuration: configuration,
         }
