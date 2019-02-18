@@ -274,7 +274,7 @@ func (a *{{{classname}}}Service) {{{nickname}}}WithContext(ctx context.Context{{
 	}
 
 	if localVarHttpResponse.StatusCode >= 300 {
-		newErr := GenericOpenAPIError{
+		newErr := {{classname}}Error{
 			body:  localVarBody,
 			error: localVarHttpResponse.Status,
 		}
@@ -298,7 +298,7 @@ func (a *{{{classname}}}Service) {{{nickname}}}WithContext(ctx context.Context{{
 	{{#returnType}}
 	err = a.client.decode(&localVarReturnValue, localVarBody, localVarHttpResponse.Header.Get("Content-Type"))
 	if err != nil {
-		newErr := GenericOpenAPIError{
+		newErr := {{classname}}Error{
 			body:  localVarBody,
 			error: err.Error(),
 		}
