@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 {{#imports}}	"{{import}}"
 {{/imports}}
 )
@@ -64,7 +65,7 @@ type {{{nickname}}}Opts struct {
 }
 
 {{/hasOptionalParams}}
-func (a *{{{classname}}}Service) {{{nickname}}}(ctx context.Context{{#hasParams}}, {{/hasParams}}{{#allParams}}{{#required}}{{paramName}} {{{dataType}}}{{#hasMore}}, {{/hasMore}}{{/required}}{{/allParams}}{{#hasOptionalParams}}localVarOptionals *{{{nickname}}}Opts{{/hasOptionalParams}}) ({{#returnType}}{{{returnType}}}, {{/returnType}}*http.Response, error) {
+func (a *{{{classname}}}Service) {{{nickname}}}WithContext(ctx context.Context{{#hasParams}}, {{/hasParams}}{{#allParams}}{{#required}}{{paramName}} {{{dataType}}}{{#hasMore}}, {{/hasMore}}{{/required}}{{/allParams}}{{#hasOptionalParams}}localVarOptionals *{{{nickname}}}Opts{{/hasOptionalParams}}) ({{#returnType}}{{{returnType}}}, {{/returnType}}*http.Response, error) {
 	var (
 		localVarHttpMethod   = strings.ToUpper("{{httpMethod}}")
 		localVarPostBody     interface{}
@@ -307,5 +308,12 @@ func (a *{{{classname}}}Service) {{{nickname}}}(ctx context.Context{{#hasParams}
 	{{/returnType}}
 	return {{#returnType}}localVarReturnValue, {{/returnType}}localVarHttpResponse, nil
 }
+
+func (a *{{{classname}}}Service) {{{nickname}}}({{#allParams}}{{#required}}{{paramName}} {{{dataType}}}{{#hasMore}}, {{/hasMore}}{{/required}}{{/allParams}}{{#hasOptionalParams}}localVarOptionals *{{{nickname}}}Opts{{/hasOptionalParams}}) ({{#returnType}}{{{returnType}}}, {{/returnType}}*http.Response, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 11*time.Minute)
+	defer cancel()
+	return a.{{{nickname}}}WithContext(ctx{{#hasParams}}, {{/hasParams}}{{#allParams}}{{#required}}{{paramName}}{{#hasMore}}, {{/hasMore}}{{/required}}{{/allParams}}{{#hasOptionalParams}}localVarOptionals{{/hasOptionalParams}})
+}
+
 {{/operation}}
 {{/operations}}
